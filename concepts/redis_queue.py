@@ -124,7 +124,7 @@ class RedisQueue:
 
     def dequeue(self):
         # Fetch the pickle serialized `task` object from Redis.
-        serialized_task = self.broker.lpop(self.queue_name)
+        serialized_task = self.broker.blpop(self.queue_name)
 
         # Deserialize the pickled object to the `task` object.
         task = pickle.loads(serialized_task)
