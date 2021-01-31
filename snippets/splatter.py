@@ -104,28 +104,24 @@ json_str = """
 }
 
 """
-class JSONLoader:
-    def __init__(self, json_str):
-        self.json_str = json_str
 
-    def from_str(self, json_str)
-
-    def from_file(self, json_path):
 
 class Splatter:
     def __init__(
         self,
         dct,
-        path="",
+        prefix="",
         delimiter=".",
         show_value=False,
-        markdown=False,
+        show_markdown=False,
+        export_path=None,
     ):
         self.dct = dct
-        self.path = path
+        self.prefix = prefix
         self.delimiter = delimiter
         self.show_value = show_value
-        self.markdown = markdown
+        self.show_markdown = show_markdown
+        self.export_path = export_path
         self._rows = []
 
     @staticmethod
@@ -145,7 +141,7 @@ class Splatter:
                     self._path_finder(path + self.delimiter + k, v)
 
                 else:
-                    if self.markdown:
+                    if self.show_markdown:
                         if self.show_value:
                             row = f"* `{path}{self.delimiter}{k}` : `{self._get_type(v)}` => `{v}`"
                         else:
@@ -160,50 +156,87 @@ class Splatter:
             return self._rows
 
     def splat(self):
-        rows = self._path_finder(self.path, self.dct)
-        for row in rows:
-            print(row)
-            if self.markdown:
-                print(f"    * ")
-                print()
+        rows = self._path_finder(self.prefix, self.dct)
+        export_path = self.export_path
+        if not export_path:
+            for row in rows:
+                print(row)
+                if self.show_markdown:
+                    print(f"    * ")
+                    print()
+        else:
+            with open(export_path, 'w+') as f:
+                for row in rows:
+                    print(row)
+                    if self.show_markdown:
+                        print(f"    * ")
+                        print()
+                    f.writelines(f"{row}\n")
 
+
+class CLI:
+    def __init__(self, splatter_cls):
+        self.splatter_cls = splatter_cls
+
+    @staticmethod
+    def _load_json(json_str, json_path=None):
+        if json_str:
+            return json.loads(json_str)
+
+        with open(json_path) as f:
+            return json.load(f)
+
+    @staticmethod
+    def _parse_args():
+        parser = argparse.ArgumentParser(description="Splatter a json string.")
+        parser.add_argument(
+            "--json",
+            help="provide the target json string",
+        )
+        parser.add_argument(
+            "--json_path",
+            help="provide the target json file path",
+        )
+        parser.add_argument("--prefix", default="", help="append a prefix before path")
+        parser.add_argument(
+            "--delimiter",
+            default=".",
+            help="provide preferred delimiter",
+        )
+        parser.add_argument(
+            "--show_markdown",
+            action="store_true",
+            help="print in markdown format",
+        )
+        parser.add_argument(
+            "--hide_value",
+            action="store_false",
+            help="show or hide attr values",
+        )
+        parser.add_argument(
+            "--export_path",
+            help="export result to `.md` file",
+        )
+
+        args = parser.parse_args()
+
+        return args
+
+    def entrypoint(self):
+        args = self._parse_args()
+        dct = self._load_json(args.json, args.json_path)
+        sp = self.splatter_cls(
+            dct,
+            prefix=args.prefix,
+            delimiter=args.delimiter,
+            show_markdown=args.show_markdown,
+            show_value=args.hide_value,
+            export_path = args.export_path
+        )
+
+        sp.splat()
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Splatter a json string.")
-    parser.add_argument(
-        "--json",
-        required=True,
-        help="provide the target json string",
-    )
-    parser.add_argument("--path", default="", help="append predefined path")
-    parser.add_argument(
-        "--delimiter",
-        default=".",
-        help="provide preferred delimiter",
-    )
-    parser.add_argument(
-        "--markdown",
-        action="store_true",
-        help="print in markdown format",
-    )
-    parser.add_argument(
-        "--hide_value",
-        action="store_false",
-        help="show or hide attr values",
-    )
-    parser.add_argument("--load", help="load json from `.json` file")
-    parser.add_argument("--export", help="export result to `.md` file")
-
-    args = parser.parse_args()
-
-    dct = json.loads(args.json)
-
-    sp = Splatter(
-        dct,
-        args.path,
-        delimiter=args.delimiter,
-        markdown=args.markdown,
-        show_value=args.hide_value,
-    )
-    sp.splat()
+    cli = CLI(Splatter)
+    cli.entrypoint()
