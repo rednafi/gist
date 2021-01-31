@@ -3,7 +3,7 @@ from pprint import pprint
 import argparse
 
 
-json_str = """
+_DEMO_STR = """
 
 
 {
@@ -102,8 +102,11 @@ json_str = """
     "notes_by_provider": "Testing an API call.",
     "bulk_order_uuid": null
 }
-
 """
+
+
+class ArgCombinationError(Exception):
+    """This combination of arguments is not allowed."""
 
 
 class Splatter:
@@ -112,7 +115,7 @@ class Splatter:
         dct,
         prefix="",
         delimiter=".",
-        show_value=False,
+        show_value=True,
         show_markdown=False,
         export_path=None,
     ):
@@ -125,38 +128,46 @@ class Splatter:
         self._rows = []
 
     @staticmethod
-    def _get_type(o):
+    def get_type(o):
         return type(o).__name__
 
-    def _path_finder(self, path, dct):
+    def path_finder(self, prefix, dct):
         if isinstance(dct, dict):
             for k, v in dct.items():
                 if isinstance(v, list):
                     for i, item in enumerate(v):
-                        self._path_finder(
-                            path + self.delimiter + k + self.delimiter + str(i),
+                        self.path_finder(
+                            f"{prefix}{self.delimiter}{k}{self.delimiter}{i}",
                             item,
                         )
                 elif isinstance(v, dict):
-                    self._path_finder(path + self.delimiter + k, v)
+                    self.path_finder(f"{prefix}{self.delimiter}{k}", v)
 
                 else:
                     if self.show_markdown:
+                        part_1 = f"* `{prefix}{self.delimiter}{k}`:"
+                        part_2 = f"`{self.get_type(v)}`"
+                        part_3 = f"`{v}`"
+
                         if self.show_value:
-                            row = f"* `{path}{self.delimiter}{k}` : `{self._get_type(v)}` => `{v}`"
+                            row = f"{part_1}{part_2} => {part_3}"
                         else:
-                            row = f"* `{path}{self.delimiter}{k}` : `{self._get_type(v)}`"
+                            row = f"{part_1}{part_2}"
                     else:
+                        part_1 = f"* {prefix}{self.delimiter}{k} : "
+                        part_2 = f"{self.get_type(v)}"
+                        part_3 = f"{v}"
+
                         if self.show_value:
-                            row = f"{path}{self.delimiter}{k} : {self._get_type(v)} => {v}"
+                            row = f"{part_1}{part_2} => {part_3}"
                         else:
-                            row = f"{path}{self.delimiter}{k} : {self._get_type(v)} => {v}"
+                            row = f"{part_1}{part_2}"
                     self._rows.append(row)
 
             return self._rows
 
     def splat(self):
-        rows = self._path_finder(self.prefix, self.dct)
+        rows = self.path_finder(self.prefix, self.dct)
         export_path = self.export_path
         if not export_path:
             for row in rows:
@@ -165,7 +176,7 @@ class Splatter:
                     print(f"    * ")
                     print()
         else:
-            with open(export_path, 'w+') as f:
+            with open(export_path, "w+") as f:
                 for row in rows:
                     print(row)
                     if self.show_markdown:
@@ -179,7 +190,10 @@ class CLI:
         self.splatter_cls = splatter_cls
 
     @staticmethod
-    def _load_json(json_str, json_path=None):
+    def load_json(json_str, json_path=None, demo=False, _demo_str=_DEMO_STR):
+        if demo:
+            return json.loads(_demo_str)
+
         if json_str:
             return json.loads(json_str)
 
@@ -187,7 +201,16 @@ class CLI:
             return json.load(f)
 
     @staticmethod
-    def _parse_args():
+    def handle_errors(args):
+        if args.json and args.json_path:
+            raise ArgCombinationError("This combination of arguments is not allowed.")
+
+        elif args.demo and any((args.json, args.json_path)):
+            raise ArgCombinationError("This combination of arguments is not allowed.")
+
+
+    @staticmethod
+    def parse_args():
         parser = argparse.ArgumentParser(description="Splatter a json string.")
         parser.add_argument(
             "--json",
@@ -197,7 +220,11 @@ class CLI:
             "--json_path",
             help="provide the target json file path",
         )
-        parser.add_argument("--prefix", default="", help="append a prefix before path")
+        parser.add_argument(
+            "--prefix",
+            default="",
+            help="append a prefix before path",
+        )
         parser.add_argument(
             "--delimiter",
             default=".",
@@ -209,12 +236,17 @@ class CLI:
             help="print in markdown format",
         )
         parser.add_argument(
-            "--hide_value",
+            "--hide_values",
             action="store_false",
             help="show or hide attr values",
         )
         parser.add_argument(
             "--export_path",
+            help="export result to `.md` file",
+        )
+        parser.add_argument(
+            "--demo",
+            action='store_true',
             help="export result to `.md` file",
         )
 
@@ -223,18 +255,23 @@ class CLI:
         return args
 
     def entrypoint(self):
-        args = self._parse_args()
-        dct = self._load_json(args.json, args.json_path)
+        args = self.parse_args()
+
+        # Handling errors.
+        self.handle_errors(args)
+
+        dct = self.load_json(args.json, args.json_path, args.demo)
         sp = self.splatter_cls(
             dct,
             prefix=args.prefix,
             delimiter=args.delimiter,
             show_markdown=args.show_markdown,
-            show_value=args.hide_value,
-            export_path = args.export_path
+            show_value=args.hide_values,
+            export_path=args.export_path,
         )
 
         sp.splat()
+
 
 if __name__ == "__main__":
 
