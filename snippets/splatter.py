@@ -106,7 +106,11 @@ _DEMO_STR = """
 
 
 class ArgCombinationError(Exception):
-    """This combination of arguments is not allowed."""
+    """Raised an invalid argument combination is provided."""
+
+
+class JSONMissingError(Exception):
+    """Raised when JSON str or JSON file path is missing."""
 
 
 class Splatter:
@@ -208,6 +212,9 @@ class CLI:
         elif args.demo and any((args.json, args.json_path)):
             raise ArgCombinationError("This combination of arguments is not allowed.")
 
+        elif not args.demo and not any((args.json, args.json_path)):
+            err_msg = "None of JSON string or JSON file path has been provided."
+            raise JSONMissingError(err_msg)
 
     @staticmethod
     def parse_args():
@@ -246,7 +253,7 @@ class CLI:
         )
         parser.add_argument(
             "--demo",
-            action='store_true',
+            action="store_true",
             help="export result to `.md` file",
         )
 
