@@ -120,14 +120,14 @@ class Splatter:
         prefix="",
         delimiter=".",
         show_value=True,
-        show_markdown=False,
+        markdown=False,
         export_path=None,
     ):
         self.dct = dct
         self.prefix = prefix
         self.delimiter = delimiter
         self.show_value = show_value
-        self.show_markdown = show_markdown
+        self.markdown = markdown
         self.export_path = export_path
         self._rows = []
 
@@ -148,7 +148,7 @@ class Splatter:
                     self.path_finder(f"{prefix}{self.delimiter}{k}", v)
 
                 else:
-                    if self.show_markdown:
+                    if self.markdown:
                         part_1 = f"* `{prefix}{self.delimiter}{k}`:"
                         part_2 = f"`{self.get_type(v)}`"
                         part_3 = f"`{v}`"
@@ -176,21 +176,21 @@ class Splatter:
         if not export_path:
             for row in rows:
                 print(row)
-                if self.show_markdown:
+                if self.markdown:
                     print(f"    * ")
                     print()
         else:
             with open(export_path, "w+") as f:
                 for row in rows:
                     print(row)
-                    if self.show_markdown:
+                    if self.markdown:
                         print("    * ")
                         print()
-                    f.writelines(f"{row}\n")
-                    f.writelines("    * \n")
-                    f.writelines("\n")
-
-
+                        f.writelines(f"{row}\n")
+                        f.writelines("    * \n")
+                        f.writelines("\n")
+                    else:
+                        f.writelines(f"{row}\n")
 
 class CLI:
     def __init__(self, splatter_cls):
@@ -241,7 +241,7 @@ class CLI:
             help="provide preferred delimiter",
         )
         parser.add_argument(
-            "--show_markdown",
+            "--markdown",
             action="store_true",
             help="print in markdown format",
         )
@@ -275,7 +275,7 @@ class CLI:
             dct,
             prefix=args.prefix,
             delimiter=args.delimiter,
-            show_markdown=args.show_markdown,
+            markdown=args.markdown,
             show_value=args.hide_values,
             export_path=args.export_path,
         )
