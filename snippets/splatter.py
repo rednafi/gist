@@ -149,7 +149,7 @@ class Splatter:
 
                 else:
                     if self.markdown:
-                        part_1 = f"* `{prefix}{self.delimiter}{k}`:"
+                        part_1 = f"* `{prefix}{self.delimiter}{k}` : "
                         part_2 = f"`{self.get_type(v)}`"
                         part_3 = f"`{v}`"
 
@@ -186,7 +186,9 @@ class Splatter:
                     if self.markdown:
                         print("    * ")
                         print()
-                        f.writelines(f"{row}\n")
+                        f.writelines(f"{row}")
+                        f.writelines("\n")
+                        f.writelines('\n')
                         f.writelines("    * \n")
                         f.writelines("\n")
                     else:
