@@ -106,11 +106,11 @@ _DEMO_STR = """
 
 
 class ArgCombinationError(Exception):
-    """Raised an invalid argument combination is provided."""
+    """Raised when an invalid argument combination is provided."""
 
 
 class JSONMissingError(Exception):
-    """Raised when JSON str or JSON file path is missing."""
+    """Raised when none of JSON str or JSON file path is provided."""
 
 
 class Splatter:
