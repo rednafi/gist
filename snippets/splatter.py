@@ -184,9 +184,12 @@ class Splatter:
                 for row in rows:
                     print(row)
                     if self.show_markdown:
-                        print(f"    * ")
+                        print("    * ")
                         print()
                     f.writelines(f"{row}\n")
+                    f.writelines("    * \n")
+                    f.writelines("\n")
+
 
 
 class CLI:
