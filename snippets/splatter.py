@@ -188,11 +188,12 @@ class Splatter:
                         print()
                         f.writelines(f"{row}")
                         f.writelines("\n")
-                        f.writelines('\n')
+                        f.writelines("\n")
                         f.writelines("    * \n")
                         f.writelines("\n")
                     else:
                         f.writelines(f"{row}\n")
+
 
 class CLI:
     def __init__(self, splatter_cls):
