@@ -113,6 +113,45 @@ class JSONMissingError(Exception):
     """Raised when none of JSON str or JSON file path is provided."""
 
 
+def flatten(dct, prefix=False, delimiter="."):
+    """Turn a nested dictionary into a flattened dictionary
+
+    Parameters
+    ----------
+    dct : dict
+        The dictionary to flatten
+    prefix : bool, optional
+        The string to prepend to dictionary's keys, by default False
+    delimiter : str, optional
+        str, by default "."
+
+    Returns
+    -------
+    dict
+        Flattened dictionary
+
+    Examples
+    --------
+
+    """
+
+    paths = []
+    for k, v in dct.items():
+        new_k = str(prefix) + delimiter + k if prefix else k
+
+        if isinstance(v, dict):
+            paths.extend(flatten(v, new_k, delimiter).items())
+
+        elif isinstance(v, list):
+            for k, v in enumerate(v):
+                paths.extend(flatten({str(k): v}, new_k).items())
+
+        else:
+            paths.append((new_k, v))
+
+    return dict(paths)
+
+
 class Splatter:
     def __init__(
         self,
@@ -122,6 +161,7 @@ class Splatter:
         show_value=True,
         markdown=False,
         export_path=None,
+        flatten = flatten
     ):
         self.dct = dct
         self.prefix = prefix
@@ -129,70 +169,75 @@ class Splatter:
         self.show_value = show_value
         self.markdown = markdown
         self.export_path = export_path
-        self._rows = []
+        self.flatten = flatten
 
     @staticmethod
     def get_type(o):
         return type(o).__name__
 
-    def path_finder(self, prefix, dct):
-        if isinstance(dct, dict):
-            for k, v in dct.items():
-                if isinstance(v, list):
-                    for i, item in enumerate(v):
-                        self.path_finder(
-                            f"{prefix}{self.delimiter}{k}{self.delimiter}{i}",
-                            item,
-                        )
-                elif isinstance(v, dict):
-                    self.path_finder(f"{prefix}{self.delimiter}{k}", v)
-
-                else:
-                    if self.markdown:
-                        part_1 = f"* `{prefix}{self.delimiter}{k}` : "
-                        part_2 = f"`{self.get_type(v)}`"
-                        part_3 = f"`{v}`"
-
-                        if self.show_value:
-                            row = f"{part_1}{part_2} => {part_3}"
-                        else:
-                            row = f"{part_1}{part_2}"
-                    else:
-                        part_1 = f"* {prefix}{self.delimiter}{k} : "
-                        part_2 = f"{self.get_type(v)}"
-                        part_3 = f"{v}"
-
-                        if self.show_value:
-                            row = f"{part_1}{part_2} => {part_3}"
-                        else:
-                            row = f"{part_1}{part_2}"
-                    self._rows.append(row)
-
-            return self._rows
-
     def splat(self):
-        rows = self.path_finder(self.prefix, self.dct)
-        export_path = self.export_path
-        if not export_path:
-            for row in rows:
-                print(row)
-                if self.markdown:
-                    print(f"    * ")
-                    print()
-        else:
-            with open(export_path, "w+") as f:
-                for row in rows:
-                    print(row)
-                    if self.markdown:
-                        print("    * ")
-                        print()
-                        f.writelines(f"{row}")
-                        f.writelines("\n")
-                        f.writelines("\n")
-                        f.writelines("    * \n")
-                        f.writelines("\n")
-                    else:
-                        f.writelines(f"{row}\n")
+        dct = self.flatten(self.dct, prefix=self.prefix, delimiter=self.delimiter)
+        for k, v in dct.items():
+
+
+
+    # def path_finder(self, prefix, dct):
+    #     for k, v in dct.items():
+    #         if isinstance(v, dict):
+    #             self.path_finder(f"{prefix}{self.delimiter}{k}", v)
+
+    #         if isinstance(v, list):
+    #             for i, item in enumerate(v):
+    #                 self.path_finder(
+    #                     f"{prefix}{self.delimiter}{k}{self.delimiter}{i}",
+    #                     item,
+    #                 )
+    #         if isinstance(v, str):
+    #             if self.markdown:
+    #                 part_1 = f"* `{prefix}{self.delimiter}{k}` : "
+    #                 part_2 = f"`{self.get_type(v)}`"
+    #                 part_3 = f"`{v}`"
+
+    #                 if self.show_value:
+    #                     row = f"{part_1}{part_2} => {part_3}"
+    #                 else:
+    #                     row = f"{part_1}{part_2}"
+    #             else:
+    #                 part_1 = f"* {prefix}{self.delimiter}{k} : "
+    #                 part_2 = f"{self.get_type(v)}"
+    #                 part_3 = f"{v}"
+
+    #                 if self.show_value:
+    #                     row = f"{part_1}{part_2} => {part_3}"
+    #                 else:
+    #                     row = f"{part_1}{part_2}"
+    #             self._rows.append(row)
+
+    #     return self._rows
+
+    # def splat(self):
+    #     rows = self.path_finder(self.prefix, self.dct)
+    #     export_path = self.export_path
+    #     if not export_path:
+    #         for row in rows:
+    #             print(row)
+    #             if self.markdown:
+    #                 print(f"    * ")
+    #                 print()
+    #     else:
+    #         with open(export_path, "w+") as f:
+    #             for row in rows:
+    #                 print(row)
+    #                 if self.markdown:
+    #                     print("    * ")
+    #                     print()
+    #                     f.writelines(f"{row}")
+    #                     f.writelines("\n")
+    #                     f.writelines("\n")
+    #                     f.writelines("    * \n")
+    #                     f.writelines("\n")
+    #                 else:
+    #                     f.writelines(f"{row}\n")
 
 
 class CLI:
@@ -223,7 +268,7 @@ class CLI:
             raise JSONMissingError(err_msg)
 
     @staticmethod
-    def parse_args():
+    def parse_arguments(argv=None):
         parser = argparse.ArgumentParser(description="Splatter a json string.")
         parser.add_argument(
             "--json",
@@ -263,12 +308,12 @@ class CLI:
             help="export result to `.md` file",
         )
 
-        args = parser.parse_args()
+        args = parser.parse_args(argv)
 
         return args
 
-    def entrypoint(self):
-        args = self.parse_args()
+    def entrypoint(self, argv=None):
+        args = self.parse_arguments(argv)
 
         # Handling errors.
         self.handle_errors(args)
@@ -286,7 +331,20 @@ class CLI:
         sp.splat()
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    cli = CLI(Splatter)
-    cli.entrypoint()
+#     cli = CLI(Splatter)
+#     cli.entrypoint(argv=None)
+
+
+d = {
+    "code": "8923",
+    "patients": ["a1133845-3273-4930-8abf-99570d582f99", "3c05eeb8-f219-4983-8c97-8374ac0191a9"],
+    "samples": ["9d5193d7-9eb3-4dbb-8882-20b167c3da8c"],
+    "spawned_orders": ["cdc9d59d-ad47-47e9-9f3e-e5d67d187b69"],
+}
+
+
+from pprint import pprint
+sp = Splatter(d, prefix=22)
+sp.splat()
