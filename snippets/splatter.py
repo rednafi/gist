@@ -1,7 +1,11 @@
-import json
-from pprint import pprint
 import argparse
+import json
 
+from rich.console import Console
+from rich.emoji import Emoji
+from rich.traceback import install
+
+install()
 
 _DEMO_STR = """
 
@@ -113,7 +117,7 @@ class JSONMissingError(Exception):
     """Raised when none of JSON str or JSON file path is provided."""
 
 
-def flatten(dct, prefix=False, delimiter="."):
+def flatten(dct, prefix, delimiter):
     """Turn a nested dictionary into a flattened dictionary
 
     Parameters
@@ -144,7 +148,7 @@ def flatten(dct, prefix=False, delimiter="."):
 
         elif isinstance(v, list):
             for k, v in enumerate(v):
-                paths.extend(flatten({str(k): v}, new_k).items())
+                paths.extend(flatten({str(k): v}, new_k, delimiter).items())
 
         else:
             paths.append((new_k, v))
@@ -159,85 +163,60 @@ class Splatter:
         prefix="",
         delimiter=".",
         show_value=True,
-        markdown=False,
         export_path=None,
-        flatten = flatten
+        _flatten=flatten,
+        _console=Console,
+        _emoji=Emoji,
     ):
         self.dct = dct
         self.prefix = prefix
         self.delimiter = delimiter
         self.show_value = show_value
-        self.markdown = markdown
         self.export_path = export_path
-        self.flatten = flatten
+        self._flatten = _flatten
+        self._console = _console()
+        self._emoji = _emoji
 
-    @staticmethod
-    def get_type(o):
-        return type(o).__name__
+    def get_rows(self, k, v, markdown=None):
+        emo = self._emoji("deciduous_tree")
+
+        if markdown:
+            if self.show_value:
+                return f"* `{k}`: `{type(v).__name__}` => `{v}`"
+            return f"* `{k}`: `{type(v).__name__}`"
+
+        if self.show_value:
+            return f"{emo} {k}: {type(v).__name__} => {v}"
+        return f"{emo} {k}: {type(v).__name__}"
+
+    def show_banner(self):
+        emo = self._emoji("beer")
+
+        self._console.print(
+            f"\n{emo} Splattered JSON {emo}", end="\n\n", style="bold", justify="center"
+        )
+
+    def export(self, row):
+        with open(self.export_path, "+w") as f:
+            f.writelines(f"{row} \n")
 
     def splat(self):
-        dct = self.flatten(self.dct, prefix=self.prefix, delimiter=self.delimiter)
-        for k, v in dct.items():
+        dct = self._flatten(self.dct, prefix=self.prefix, delimiter=self.delimiter)
+        markdown = True if self.export_path else False
 
+        self.show_banner()
 
-
-    # def path_finder(self, prefix, dct):
-    #     for k, v in dct.items():
-    #         if isinstance(v, dict):
-    #             self.path_finder(f"{prefix}{self.delimiter}{k}", v)
-
-    #         if isinstance(v, list):
-    #             for i, item in enumerate(v):
-    #                 self.path_finder(
-    #                     f"{prefix}{self.delimiter}{k}{self.delimiter}{i}",
-    #                     item,
-    #                 )
-    #         if isinstance(v, str):
-    #             if self.markdown:
-    #                 part_1 = f"* `{prefix}{self.delimiter}{k}` : "
-    #                 part_2 = f"`{self.get_type(v)}`"
-    #                 part_3 = f"`{v}`"
-
-    #                 if self.show_value:
-    #                     row = f"{part_1}{part_2} => {part_3}"
-    #                 else:
-    #                     row = f"{part_1}{part_2}"
-    #             else:
-    #                 part_1 = f"* {prefix}{self.delimiter}{k} : "
-    #                 part_2 = f"{self.get_type(v)}"
-    #                 part_3 = f"{v}"
-
-    #                 if self.show_value:
-    #                     row = f"{part_1}{part_2} => {part_3}"
-    #                 else:
-    #                     row = f"{part_1}{part_2}"
-    #             self._rows.append(row)
-
-    #     return self._rows
-
-    # def splat(self):
-    #     rows = self.path_finder(self.prefix, self.dct)
-    #     export_path = self.export_path
-    #     if not export_path:
-    #         for row in rows:
-    #             print(row)
-    #             if self.markdown:
-    #                 print(f"    * ")
-    #                 print()
-    #     else:
-    #         with open(export_path, "w+") as f:
-    #             for row in rows:
-    #                 print(row)
-    #                 if self.markdown:
-    #                     print("    * ")
-    #                     print()
-    #                     f.writelines(f"{row}")
-    #                     f.writelines("\n")
-    #                     f.writelines("\n")
-    #                     f.writelines("    * \n")
-    #                     f.writelines("\n")
-    #                 else:
-    #                     f.writelines(f"{row}\n")
+        if export_path := self.export_path:
+            with open(export_path, "+w") as f:
+                for k, v in dct.items():
+                    row = self.get_rows(k, v)
+                    row_md = self.get_rows(k, v, markdown=markdown)
+                    self._console.print(row)
+                    f.writelines(f"{row_md} \n")
+        else:
+            for k, v in dct.items():
+                row = self.get_rows(k, v)
+                self._console.print(row)
 
 
 class CLI:
@@ -269,7 +248,7 @@ class CLI:
 
     @staticmethod
     def parse_arguments(argv=None):
-        parser = argparse.ArgumentParser(description="Splatter a json string.")
+        parser = argparse.ArgumentParser(description="Splatter a JSON String / File.")
         parser.add_argument(
             "--json",
             help="provide the target json string",
@@ -289,11 +268,6 @@ class CLI:
             help="provide preferred delimiter",
         )
         parser.add_argument(
-            "--markdown",
-            action="store_true",
-            help="print in markdown format",
-        )
-        parser.add_argument(
             "--hide_values",
             action="store_false",
             help="show or hide attr values",
@@ -305,12 +279,10 @@ class CLI:
         parser.add_argument(
             "--demo",
             action="store_true",
-            help="export result to `.md` file",
+            help="show the output of an example json",
         )
 
-        args = parser.parse_args(argv)
-
-        return args
+        return parser.parse_args(argv)
 
     def entrypoint(self, argv=None):
         args = self.parse_arguments(argv)
@@ -323,7 +295,6 @@ class CLI:
             dct,
             prefix=args.prefix,
             delimiter=args.delimiter,
-            markdown=args.markdown,
             show_value=args.hide_values,
             export_path=args.export_path,
         )
@@ -331,20 +302,7 @@ class CLI:
         sp.splat()
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     cli = CLI(Splatter)
-#     cli.entrypoint(argv=None)
-
-
-d = {
-    "code": "8923",
-    "patients": ["a1133845-3273-4930-8abf-99570d582f99", "3c05eeb8-f219-4983-8c97-8374ac0191a9"],
-    "samples": ["9d5193d7-9eb3-4dbb-8882-20b167c3da8c"],
-    "spawned_orders": ["cdc9d59d-ad47-47e9-9f3e-e5d67d187b69"],
-}
-
-
-from pprint import pprint
-sp = Splatter(d, prefix=22)
-sp.splat()
+    cli = CLI(Splatter)
+    cli.entrypoint(argv=None)

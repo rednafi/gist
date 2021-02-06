@@ -32,4 +32,3 @@ class Foo(Prefix):
 
 th = Foo()
 str(th) == Foo(bar="dev_some_settings")
-
