@@ -13,31 +13,22 @@ Here, I've attempted to emulate a similar task queue — albeit in a much simple
 fashion — to strengthen my grasp on the concept of async task queue. This script
 roughly implements the following steps:
 
-
 -> Task callables are turned into task objects.
-
 -> Each task object has a uuid attached to that.
-
 -> These task objects are then pickle serialized and sent to the broker. Here the
    broker is a Redis database that stores the serialized tasks.
-
 -> Broker stores the tasks in a FIFO queue.
-
 -> A worker runs 4 OS processes that listen to the broker database to find tasks.
-
 -> When a task is found by the worker, it pops that from the FIFO queue, performs
    deserialization, and executes it.
-
 -> The worker sends the task result to a result backend which is just another
    Redis database.
-
 
 ============
 Instructions
 ============
 
 To run the script —
-
 -> Install docker.
 
 -> Spin a Redis instance with the following commands:
@@ -51,7 +42,7 @@ docker run --name dev-redis -d -h localhost -p 6379:6379 redis:alpine
 -> Install the dependencies:
 
 ```
-pip install redis
+pip install redis==3.5.3
 ```
 
 -> Run the script:
@@ -63,16 +54,15 @@ python redis_queue.py
 -> To inspect the results, connect to Redis DB with RedisInsight, and the results
 can be found in Database 1.
 
-
 =======
 License
 =======
 
 MIT License.
-
-Copyright (c) 2020 Redowan Delowar.
+Copyright (c) 2021 Redowan Delowar.
 """
 
+from __future__ import annotations
 
 import logging
 import multiprocessing
@@ -89,13 +79,13 @@ logging.basicConfig(level=logging.INFO)
 class SimpleTask:
     """Assign a unique `task_id` to the target function."""
 
-    def __init__(self, func: Callable, *args: Any, **kwargs: Any):
+    def __init__(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         self.id = str(uuid.uuid4())
         self.func = func
         self.args = args
         self.kwargs = kwargs
 
-    def process_task(self):
+    def process_task(self) -> Any:
         """Execute the function."""
 
         return self.func(*self.args, **self.kwargs)
@@ -104,12 +94,12 @@ class SimpleTask:
 class RedisQueue:
     """Simplified FIFO queue with Redis."""
 
-    def __init__(self, broker: Redis, result_backend: Redis, queue_name: str):
+    def __init__(self, broker: Redis, result_backend: Redis, queue_name: str) -> None:
         self.broker = broker
         self.result_backend = result_backend
         self.queue_name = queue_name
 
-    def enqueue(self, func: Callable, *args: Any, **kwargs: Any):
+    def enqueue(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
         # Apply `SimpleTask` on the target function to convert it to a `task` object.
         task = SimpleTask(func, *args, **kwargs)
 
@@ -122,9 +112,10 @@ class RedisQueue:
         # Return the `task_id` just like Celery.
         return task.id
 
-    def dequeue(self):
+    def dequeue(self) -> None:
         # Fetch the pickle serialized `task` object from Redis.
         serialized_task = self.broker.blpop(self.queue_name)
+        serialized_task = serialized_task[1]
 
         # Deserialize the pickled object to the `task` object.
         task = pickle.loads(serialized_task)
@@ -137,7 +128,7 @@ class RedisQueue:
         self.result_backend.set(f"{task.id}", result)
         logging.info("Task processing complete.")
 
-    def get_length(self):
+    def get_length(self) -> int:
         return self.broker.llen(self.queue_name)
 
 
@@ -177,9 +168,11 @@ if __name__ == "__main__":
 
     # Assigning 10 tasks to be carried out by the worker, usually you'd do
     # this in a separate module.
-    for start, end in zip(range(10), range(100, 1000, 100)):
+    for start, end in zip(range(1000), range(1000, 2000)):
         rq.enqueue(task, start, end)
 
     # Spawn 4 parallel processes, fetch tasks from the queue and execute them
     # asynchronously.
     worker(rq)
+    broker.close()
+    result_backend.close()
